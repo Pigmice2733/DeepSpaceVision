@@ -14,22 +14,6 @@ class DeepSpaceVision:
 
         self.percent_offset = 0.9
 
-    def is_hatch_targets(self, contours) -> bool:
-        if len(contours) < 2:
-            return False
-
-        first_rect = cv2.minAreaRect(contours[0])
-        _, (first_width, first_height), _ = first_rect
-        if max(first_width, first_height) < 3:
-            return False
-
-        second_rect = cv2.minAreaRect(contours[1])
-        _, (second_width, second_height), _ = second_rect
-        if max(second_width, second_height) < 3:
-            return False
-
-        return True
-
     def draw_rect(self, imghsv, contour):
         rect = cv2.minAreaRect(contour)
         pts = cv2.boxPoints(rect)
@@ -48,15 +32,50 @@ class DeepSpaceVision:
             )
         return -1, -1
 
-    def calculate_offset(self, contours):
-        first_centroid = self.calculate_centroid(contours[0])
-        second_centroid = self.calculate_centroid(contours[1])
+    def find_vision_targets(self, contours):
+        if len(contours) < 2:
+            return False, None, None
 
-        if first_centroid[0] == -1 or second_centroid[0] == -1:
-            return -1
+        left_side = []
+        right_side = []
+        
+        for c in contours:
+            rect = cv2.minAreaRect(c)
+            size = rect[1]
+            if(max(size[0], size[1]) < 5):
+                continue
 
-        width = abs(first_centroid[0] - second_centroid[0])
-        centroid = 0.5 * (first_centroid[0] + second_centroid[0])
+            angle = rect[2]
+            if(size[0] > size[1]):
+                angle += 90.0
+
+            if(abs(angle - 14.5) < 5):
+                left_side.append(self.calculate_centroid(c))
+            elif(abs(angle + 14.5) < 5):
+                right_side.append(self.calculate_centroid(c))
+
+        if(len(left_side) == 0 or len(right_side) == 0):
+            return False, None, None
+
+        left_side = sorted(left_side, key=lambda c: c[0], reverse=False)
+        right_side = sorted(right_side, key=lambda c: c[0], reverse=True)
+
+        left = left_side[0]
+        right = right_side[0]
+
+        for r in right_side:
+            if(r[0] < right[0] and r[0] > left[0]):
+                right = r
+
+        for l in left_side:
+            if(l[0] > left[0] and l[0] < right[0]):
+                left = l
+
+        return True, left, right
+
+    def calculate_offset(self, left, right):
+        width = abs(right[0] - left[0])
+        centroid = 0.5 * (left[0] + right[0])
         centroid += width * self.percent_offset * 0.5
 
         offset = (centroid - 80.0) / 80.0
@@ -72,13 +91,16 @@ class DeepSpaceVision:
 
         if not self.mask_only:
             contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)
+            # contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-            if self.is_hatch_targets(contours):
-                self.draw_contour(imghsv, contours[0])
-                self.draw_contour(imghsv, contours[1])
+            for c in contours:
+                if(cv2.contourArea(c) > 8):
+                    self.draw_contour(imghsv, c)
 
-                offset = self.calculate_offset(contours)
+            detected, left, right = self.find_vision_targets(contours)
+
+            if detected:
+                offset = self.calculate_offset(left, right)
 
                 cv2.line(
                     imghsv,
@@ -107,10 +129,12 @@ class DeepSpaceVision:
         mask = cv2.inRange(imghsv, self.min_threshold, self.max_threshold)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+        # contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-        if self.is_hatch_targets(contours):
-            offset = self.calculate_offset(contours)
+        detected, left, right = self.find_vision_targets(contours)
+
+        if detected:
+            offset = self.calculate_offset(left, right)
             jevois.sendSerial("OFF {} END".format(offset))
 
         else:
