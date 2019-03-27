@@ -32,26 +32,28 @@ class DeepSpaceVision:
             )
         return -1, -1
 
-    def find_vision_targets(self, contours):
+    def find_vision_targets(self, contours, width):
         if len(contours) < 2:
             return False, None, None
+        elif len(contours) == 2:
+            return True, self.calculate_centroid(contours[0]), self.calculate_centroid(contours[1])
 
         left_side = []
         right_side = []
-        
+
         for c in contours:
             rect = cv2.minAreaRect(c)
             size = rect[1]
-            if(max(size[0], size[1]) < 5):
+            if(max(size[0], size[1]) < 3):
                 continue
 
             angle = rect[2]
             if(size[0] > size[1]):
                 angle += 90.0
 
-            if(abs(angle - 14.5) < 5):
+            if(angle > 0 and angle < 45):
                 left_side.append(self.calculate_centroid(c))
-            elif(abs(angle + 14.5) < 5):
+            elif(angle < 0 and angle > -45):
                 right_side.append(self.calculate_centroid(c))
 
         if(len(left_side) == 0 or len(right_side) == 0):
@@ -61,24 +63,31 @@ class DeepSpaceVision:
         right_side = sorted(right_side, key=lambda c: c[0], reverse=True)
 
         left = left_side[0]
+
+        target = 0.35 * width
+
+        # Find left strip closest to 10% left of the middle
+        for l in left_side:
+            if(abs(l[0] - target) < abs(left[0] - target)):
+                left = l
+
         right = right_side[0]
 
+        # Find right pair for the left strip
         for r in right_side:
             if(r[0] < right[0] and r[0] > left[0]):
                 right = r
 
-        for l in left_side:
-            if(l[0] > left[0] and l[0] < right[0]):
-                left = l
-
         return True, left, right
 
-    def calculate_offset(self, left, right):
+    def calculate_offset(self, left, right, width):
         width = abs(right[0] - left[0])
         centroid = 0.5 * (left[0] + right[0])
         centroid += width * self.percent_offset * 0.5
 
-        offset = (centroid - 80.0) / 80.0
+        half = 0.5 * width
+
+        offset = (centroid - half) / half
 
         return offset
 
@@ -89,6 +98,8 @@ class DeepSpaceVision:
         # Create mask
         mask = cv2.inRange(imghsv, self.min_threshold, self.max_threshold)
 
+        _, width, _ = imghsv.shape
+
         if not self.mask_only:
             contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
             # contours = sorted(contours, key=cv2.contourArea, reverse=True)
@@ -97,10 +108,10 @@ class DeepSpaceVision:
                 if(cv2.contourArea(c) > 8):
                     self.draw_contour(imghsv, c)
 
-            detected, left, right = self.find_vision_targets(contours)
+            detected, left, right = self.find_vision_targets(contours, width)
 
             if detected:
-                offset = self.calculate_offset(left, right)
+                offset = self.calculate_offset(left, right, width)
 
                 cv2.line(
                     imghsv,
@@ -128,13 +139,15 @@ class DeepSpaceVision:
         # Create mask
         mask = cv2.inRange(imghsv, self.min_threshold, self.max_threshold)
 
+        _, width, _ = imghsv.shape
+
         contours, _ = cv2.findContours(mask, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
         # contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-        detected, left, right = self.find_vision_targets(contours)
+        detected, left, right = self.find_vision_targets(contours, width)
 
         if detected:
-            offset = self.calculate_offset(left, right)
+            offset = self.calculate_offset(left, right, width)
             jevois.sendSerial("OFF {} END".format(offset))
 
         else:
