@@ -79,7 +79,10 @@ class DeepSpaceVision:
             if(r[0] < right[0] and r[0] > left[0]):
                 right = r
 
-        return True, left, right
+        if(right[0] > left[0]):
+            return True, left, right
+        else:
+            return False, None, None
 
     def calculate_offset(self, left, right, img_width):
         width = abs(right[0] - left[0])
