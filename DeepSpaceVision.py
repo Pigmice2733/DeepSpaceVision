@@ -32,7 +32,7 @@ class DeepSpaceVision:
             )
         return -1, -1
 
-    def find_vision_targets(self, contours, width):
+    def find_vision_targets(self, contours, img_width):
         if len(contours) < 2:
             return False, None, None
         elif len(contours) == 2:
@@ -64,11 +64,12 @@ class DeepSpaceVision:
 
         left = left_side[0]
 
-        target = 0.35 * width
+        # Target strip closest to 35% of the image width from the left
+        target_position = 0.35 * img_width
 
-        # Find left strip closest to 10% left of the middle
+        # Find left strip closest to targetp position
         for l in left_side:
-            if(abs(l[0] - target) < abs(left[0] - target)):
+            if(abs(l[0] - target_position) < abs(left[0] - target_position)):
                 left = l
 
         right = right_side[0]
@@ -80,14 +81,14 @@ class DeepSpaceVision:
 
         return True, left, right
 
-    def calculate_offset(self, left, right, width):
+    def calculate_offset(self, left, right, img_width):
         width = abs(right[0] - left[0])
         centroid = 0.5 * (left[0] + right[0])
         centroid += width * self.percent_offset * 0.5
 
-        half = 0.5 * width
+        half_width = 0.5 * img_width
 
-        offset = (centroid - half) / half
+        offset = (centroid - half_width) / half_width
 
         return offset
 
