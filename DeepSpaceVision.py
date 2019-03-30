@@ -12,7 +12,7 @@ class DeepSpaceVision:
         self.max_threshold = np.array([90, 255, 255], dtype=np.uint8)
         self.mask_only = False
 
-        self.percent_offset = 0.9
+        self.percent_offset = 0.55
 
     def draw_rect(self, imghsv, contour):
         rect = cv2.minAreaRect(contour)
@@ -35,54 +35,57 @@ class DeepSpaceVision:
     def find_vision_targets(self, contours, img_width):
         if len(contours) < 2:
             return False, None, None
-        elif len(contours) == 2:
-            return True, self.calculate_centroid(contours[0]), self.calculate_centroid(contours[1])
-
-        left_side = []
-        right_side = []
-
-        for c in contours:
-            rect = cv2.minAreaRect(c)
-            size = rect[1]
-            if(max(size[0], size[1]) < 3):
-                continue
-
-            angle = rect[2]
-            if(size[0] > size[1]):
-                angle += 90.0
-
-            if(angle > 0 and angle < 45):
-                left_side.append(self.calculate_centroid(c))
-            elif(angle < 0 and angle > -45):
-                right_side.append(self.calculate_centroid(c))
-
-        if(len(left_side) == 0 or len(right_side) == 0):
-            return False, None, None
-
-        left_side = sorted(left_side, key=lambda c: c[0], reverse=False)
-        right_side = sorted(right_side, key=lambda c: c[0], reverse=True)
-
-        left = left_side[0]
-
-        # Target strip closest to 35% of the image width from the left
-        target_position = 0.35 * img_width
-
-        # Find left strip closest to targetp position
-        for l in left_side:
-            if(abs(l[0] - target_position) < abs(left[0] - target_position)):
-                left = l
-
-        right = right_side[0]
-
-        # Find right pair for the left strip
-        for r in right_side:
-            if(r[0] < right[0] and r[0] > left[0]):
-                right = r
-
-        if(right[0] > left[0]):
-            return True, left, right
         else:
-            return False, None, None
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
+            return True, self.calculate_centroid(contours[0]), self.calculate_centroid(contours[1])
+        # elif len(contours) == 2:
+        #     return True, self.calculate_centroid(contours[0]), self.calculate_centroid(contours[1])
+
+        # left_side = []
+        # right_side = []
+
+        # for c in contours:
+        #     rect = cv2.minAreaRect(c)
+        #     size = rect[1]
+        #     if(max(size[0], size[1]) < 3):
+        #         continue
+
+        #     angle = rect[2]
+        #     if(size[0] > size[1]):
+        #         angle += 90.0
+
+        #     if(angle > 0 and angle < 45):
+        #         left_side.append(self.calculate_centroid(c))
+        #     elif(angle < 0 and angle > -45):
+        #         right_side.append(self.calculate_centroid(c))
+
+        # if(len(left_side) == 0 or len(right_side) == 0):
+        #     return False, None, None
+
+        # left_side = sorted(left_side, key=lambda c: c[0], reverse=False)
+        # right_side = sorted(right_side, key=lambda c: c[0], reverse=True)
+
+        # left = left_side[0]
+
+        # # Target strip closest to 35% of the image width from the left
+        # target_position = 0.35 * img_width
+
+        # # Find left strip closest to targetp position
+        # for l in left_side:
+        #     if(abs(l[0] - target_position) < abs(left[0] - target_position)):
+        #         left = l
+
+        # right = right_side[0]
+
+        # # Find right pair for the left strip
+        # for r in right_side:
+        #     if(r[0] < right[0] and r[0] > left[0]):
+        #         right = r
+
+        # if(right[0] > left[0]):
+        #     return True, left, right
+        # else:
+        #     return False, None, None
 
     def calculate_offset(self, left, right, img_width):
         width = abs(right[0] - left[0])
